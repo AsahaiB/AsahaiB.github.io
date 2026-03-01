@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Sahaicon">
+    
+    <title>Sahaicon v20.1 | Final Build</title>
+    
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css">
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #010409;
+            --deep-sea: #020c1b;
+            --glass: rgba(2, 12, 27, 0.97);
+            --neon-blue: #0ea5e9;
+            --neon-green: #22c55e;
+            --neon-red: #f43f5e;
+            --neon-gold: #eab308;
+            --text-main: #f8fafc;
+        }
+
+        body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text-main); overflow: hidden; width: 100vw; height: 100vh; }
+        
+        /* Boot Screen */
+        #boot-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--deep-sea); z-index: 10000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out;
+        }
+        .boot-loader { width: 250px; height: 2px; background: rgba(14, 165, 233, 0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .boot-bar { position: absolute; width: 0%; height: 100%; background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); animation: bootLoad 2.5s forwards; }
+        @keyframes bootLoad { 0% { width: 0%; } 100% { width: 100%; } }
+
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+
+        /* Compass Floating Button */
+        .compass-btn {
+            position: absolute; top: 60px; right: 20px; z-index: 15;
+            width: 50px; height: 50px; border-radius: 50%;
+            background: var(--glass); border: 1px solid var(--neon-blue);
+            color: white; display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .compass-active { background: var(--neon-blue); box-shadow: 0 0 20px var(--neon-blue); }
+
+        /* Bottom Sheet UI */
+        .bottom-sheet {
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 10;
+            background: var(--glass); backdrop-filter: blur(30px);
+            border-radius: 32px 32px 0 0; border-top: 1px solid rgba(14, 165, 233, 0.3);
+            padding: 10px 20px 45px 20px; box-sizing: border-box;
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        }
+        .sheet-collapsed { transform: translateY(calc(100% - 105px)); }
+        .handle-zone { width: 100%; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .handle { width: 45px; height: 5px; background: rgba(255,255,255,0.2); border-radius: 10px; }
+
+        #geocoder { width: 100%; margin-bottom: 12px; }
+        .mapboxgl-ctrl-geocoder { width: 100% !important; max-width: none !important; background: rgba(255,255,255,0.05) !important; border: 1px solid var(--neon-blue); border-radius: 16px !important; }
+        .mapboxgl-ctrl-geocoder--input { color: white !important; font-size: 16px !important; }
+
+        /* HUD Panels */
+        .info-panel { background: rgba(0,0,0,0.4); padding: 16px; border-radius: 20px; border: 1px solid rgba(14, 165, 233, 0.15); margin-bottom: 15px; }
+        .target-val-container { display: flex; align-items: center; justify-content: space-between; }
+        .target-val { color: var(--neon-blue); font-weight: 900; font-size: 1.2rem; }
+        .edit-icon { color: var(--neon-gold); font-size: 1rem; cursor: pointer; }
+        .target-addr { font-size: 0.75rem; color: #94a3b8; margin-top: 6px; display: block; }
+
+        /* Tactical Grid */
+        .btn-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn { 
+            border: none; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 0.7rem; 
+            color: white; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn:active { transform: scale(0.96); opacity: 0.8; }
+        .btn-spy { background: var(--neon-red); }
+        .btn-next { background: transparent; color: var(--neon-blue); border: 1px solid var(--neon-blue); }
+        .btn-nav { background: var(--neon-green); grid-column: span 2; }
+
+        .target-dot { width: 26px; height: 26px; background: var(--neon-green); border-radius: 50%; border: 4px solid white; box-shadow: 0 0 20px var(--neon-green); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div id="boot-screen">
+    <div style="font-size: 1.5rem; letter-spacing: 12px; color: var(--neon-blue); font-weight: 900;">SAHAICON</div>
+    <div class="boot-loader"><div class="boot-bar"></div></div>
+    <button class="btn btn-nav" style="margin-top: 40px; width: 220px;" onclick="initSystem()">INITIALIZE SYSTEM</button>
+</div>
+
+<div id="map"></div>
+<button class="compass-btn" id="compass-toggle" onclick="requestCompass()">🧭</button>
+
+<div class="bottom-sheet" id="sheet">
+    <div class="handle-zone" onclick="toggleSheet()"><div class="handle"></div></div>
+    <div id="geocoder"></div>
+
+    <div id="hud" class="info-panel" style="display:none;">
+        <div class="target-val-container">
+            <span class="target-val" id="w-name">--</span>
+            <span class="edit-icon" onclick="renameTarget()">✎</span>
+        </div>
+        <span class="target-addr" id="w-addr">Synchronizing Geo-Data...</span>
+    </div>
+
+    <div class="btn-stack" id="actions" style="display:none;">
+        <button class="btn btn-spy" onclick="triggerSpy()">ORBITAL SPY</button>
+        <button class="btn btn-next" onclick="cycleTargets()">NEXT UNIQUE</button>
+        <button class="btn btn-nav" onclick="getNav()">INITIATE ROUTE</button>
+    </div>
+</div>
+
+<script>
+    const TOKEN = 'pk.eyJ1IjoiYXNoYXJraW51c2VyIiwiYSI6ImNtbTgxeWV1MzB6Z3YycHE1eG4yY3lzOWcifQ.BArXEOWfrbAw45Bezu_8Ng';
+    mapboxgl.accessToken = TOKEN;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playPing(f) {
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
+        o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5);
+    }
+
+    function initSystem() {
+        audioCtx.resume(); playPing(440);
+        document.getElementById('boot-screen').style.opacity = '0';
+        setTimeout(() => document.getElementById('boot-screen').style.display = 'none', 800);
+    }
+
+    const map = new mapboxgl.Map({
+        container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [-98, 38], zoom: 3, pitch: 45
+    });
+
+    const geocoder = new MapboxGeocoder({ accessToken: TOKEN, mapboxgl: mapboxgl, placeholder: 'SCAN AREA...', marker: false });
+    document.getElementById('geocoder').appendChild(geocoder.onAdd(map));
+
+    let masterList = [], currentIdx = 0, userOrigin = null, activeMarker = null, compassActive = false;
+
+    // COMPASS LOGIC
+    function requestCompass() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(res => { if (res == 'granted') toggleCompass(); });
+        } else { toggleCompass(); }
+    }
+
+    function toggleCompass() {
+        compassActive = !compassActive;
+        playPing(600);
+        document.getElementById('compass-toggle').classList.toggle('compass-active', compassActive);
+        if (compassActive) window.addEventListener('deviceorientation', handleOrientation);
+        else { window.removeEventListener('deviceorientation', handleOrientation); map.setBearing(0); }
+    }
+
+    function handleOrientation(e) {
+        const bearing = e.webkitCompassHeading || e.alpha;
+        if (bearing && compassActive) map.setBearing(bearing);
+    }
+
+    geocoder.on('result', async (e) => {
+        userOrigin = e.result.geometry.coordinates;
+        const res = await fetch(`https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${userOrigin[0]},${userOrigin[1]}.json?layers=water&limit=50&radius=100000&access_token=${TOKEN}`);
+        const data = await res.json();
+        if (data.features.length > 0) {
+            masterList = data.features.filter((f, i, self) => i === self.findIndex(t => turf.distance(turf.center(f), turf.center(t)) < 1.0));
+            currentIdx = 0; renderSelection();
+            document.getElementById('hud').style.display = 'block'; document.getElementById('actions').style.display = 'grid';
+        }
+    });
+
+    function renderSelection() {
+        const target = masterList[currentIdx]; const coords = turf.center(target).geometry.coordinates;
+        document.getElementById('w-name').innerText = target.properties.name || "UNNAMED RESERVOIR";
+        fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${TOKEN}`)
+            .then(r => r.json()).then(d => document.getElementById('w-addr').innerText = d.features[0]?.place_name || "COORDINATES SECURED");
+        if (activeMarker) activeMarker.remove();
+        const el = document.createElement('div'); el.className = 'target-dot';
+        activeMarker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map);
+        map.flyTo({ center: coords, zoom: 15, pitch: 60, duration: 2500 });
+    }
+
+    function cycleTargets() { playPing(800); currentIdx = (currentIdx + 1) % masterList.length; renderSelection(); }
+    function triggerSpy() { playPing(1000); map.setStyle('mapbox://styles/mapbox/satellite-streets-v12'); }
+    function toggleSheet() { document.getElementById('sheet').classList.toggle('sheet-collapsed'); }
+    function renameTarget() { const n = prompt("Target Alias:", document.getElementById('w-name').innerText); if(n) document.getElementById('w-name').innerText = n; }
+
+    async function getNav() {
+        const target = turf.center(masterList[currentIdx]).geometry.coordinates;
+        const res = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${userOrigin[0]},${userOrigin[1]};${target[0]},${target[1]}?geometries=geojson&access_token=${TOKEN}`);
+        const data = await res.json();
+        const route = data.routes[0].geometry.coordinates;
+        if (map.getSource('route')) map.getSource('route').setData({ 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': route } });
+        else {
+            map.addSource('route', { 'type': 'geojson', 'data': { 'type': 'Feature', 'geometry': { 'type': 'LineString', 'coordinates': route } } });
+            map.addLayer({ 'id': 'route', 'type': 'line', 'source': 'route', 'paint': { 'line-color': '#22c55e', 'line-width': 6 } });
+        }
+        map.fitBounds(route.reduce((acc, c) => acc.extend(c), new mapboxgl.LngLatBounds(route[0], route[0])), { padding: 60 });
+        toggleSheet();
+    }
+</script>
+</body>
+</html>
