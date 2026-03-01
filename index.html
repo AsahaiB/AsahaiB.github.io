@@ -7,7 +7,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Sahaicon">
     
-    <title>Sahaicon v20.1 | Final Build</title>
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <title>Sahaicon v21.0 | Final Recon</title>
     
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
@@ -29,7 +31,7 @@
 
         body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text-main); overflow: hidden; width: 100vw; height: 100vh; }
         
-        /* Boot Screen */
+        /* Tactical Boot Screen */
         #boot-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--deep-sea); z-index: 10000;
@@ -42,7 +44,7 @@
 
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
 
-        /* Compass Floating Button */
+        /* Compass Button */
         .compass-btn {
             position: absolute; top: 60px; right: 20px; z-index: 15;
             width: 50px; height: 50px; border-radius: 50%;
@@ -52,7 +54,7 @@
         }
         .compass-active { background: var(--neon-blue); box-shadow: 0 0 20px var(--neon-blue); }
 
-        /* Bottom Sheet UI */
+        /* UI Sheet */
         .bottom-sheet {
             position: absolute; bottom: 0; left: 0; width: 100%; z-index: 10;
             background: var(--glass); backdrop-filter: blur(30px);
@@ -69,19 +71,14 @@
         .mapboxgl-ctrl-geocoder { width: 100% !important; max-width: none !important; background: rgba(255,255,255,0.05) !important; border: 1px solid var(--neon-blue); border-radius: 16px !important; }
         .mapboxgl-ctrl-geocoder--input { color: white !important; font-size: 16px !important; }
 
-        /* HUD Panels */
         .info-panel { background: rgba(0,0,0,0.4); padding: 16px; border-radius: 20px; border: 1px solid rgba(14, 165, 233, 0.15); margin-bottom: 15px; }
         .target-val-container { display: flex; align-items: center; justify-content: space-between; }
         .target-val { color: var(--neon-blue); font-weight: 900; font-size: 1.2rem; }
         .edit-icon { color: var(--neon-gold); font-size: 1rem; cursor: pointer; }
         .target-addr { font-size: 0.75rem; color: #94a3b8; margin-top: 6px; display: block; }
 
-        /* Tactical Grid */
         .btn-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .btn { 
-            border: none; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 0.7rem; 
-            color: white; text-transform: uppercase; letter-spacing: 1px;
-        }
+        .btn { border: none; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 0.7rem; color: white; text-transform: uppercase; letter-spacing: 1px; }
         .btn:active { transform: scale(0.96); opacity: 0.8; }
         .btn-spy { background: var(--neon-red); }
         .btn-next { background: transparent; color: var(--neon-blue); border: 1px solid var(--neon-blue); }
@@ -96,7 +93,7 @@
 <div id="boot-screen">
     <div style="font-size: 1.5rem; letter-spacing: 12px; color: var(--neon-blue); font-weight: 900;">SAHAICON</div>
     <div class="boot-loader"><div class="boot-bar"></div></div>
-    <button class="btn btn-nav" style="margin-top: 40px; width: 220px;" onclick="initSystem()">INITIALIZE SYSTEM</button>
+    <button class="btn btn-nav" style="margin-top: 40px; width: 220px;" onclick="startRecon()">INITIALIZE SYSTEM</button>
 </div>
 
 <div id="map"></div>
@@ -105,7 +102,6 @@
 <div class="bottom-sheet" id="sheet">
     <div class="handle-zone" onclick="toggleSheet()"><div class="handle"></div></div>
     <div id="geocoder"></div>
-
     <div id="hud" class="info-panel" style="display:none;">
         <div class="target-val-container">
             <span class="target-val" id="w-name">--</span>
@@ -113,7 +109,6 @@
         </div>
         <span class="target-addr" id="w-addr">Synchronizing Geo-Data...</span>
     </div>
-
     <div class="btn-stack" id="actions" style="display:none;">
         <button class="btn btn-spy" onclick="triggerSpy()">ORBITAL SPY</button>
         <button class="btn btn-next" onclick="cycleTargets()">NEXT UNIQUE</button>
@@ -133,7 +128,7 @@
         o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5);
     }
 
-    function initSystem() {
+    function startRecon() {
         audioCtx.resume(); playPing(440);
         document.getElementById('boot-screen').style.opacity = '0';
         setTimeout(() => document.getElementById('boot-screen').style.display = 'none', 800);
@@ -148,7 +143,6 @@
 
     let masterList = [], currentIdx = 0, userOrigin = null, activeMarker = null, compassActive = false;
 
-    // COMPASS LOGIC
     function requestCompass() {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission().then(res => { if (res == 'granted') toggleCompass(); });
@@ -183,7 +177,7 @@
         const target = masterList[currentIdx]; const coords = turf.center(target).geometry.coordinates;
         document.getElementById('w-name').innerText = target.properties.name || "UNNAMED RESERVOIR";
         fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${TOKEN}`)
-            .then(r => r.json()).then(d => document.getElementById('w-addr').innerText = d.features[0]?.place_name || "COORDINATES SECURED");
+            .then(r => r.json()).then(d => document.getElementById('w-addr').innerText = d.features[0]?.place_name || "LOCKED");
         if (activeMarker) activeMarker.remove();
         const el = document.createElement('div'); el.className = 'target-dot';
         activeMarker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map);
@@ -193,7 +187,7 @@
     function cycleTargets() { playPing(800); currentIdx = (currentIdx + 1) % masterList.length; renderSelection(); }
     function triggerSpy() { playPing(1000); map.setStyle('mapbox://styles/mapbox/satellite-streets-v12'); }
     function toggleSheet() { document.getElementById('sheet').classList.toggle('sheet-collapsed'); }
-    function renameTarget() { const n = prompt("Target Alias:", document.getElementById('w-name').innerText); if(n) document.getElementById('w-name').innerText = n; }
+    function renameTarget() { const n = prompt("Alias:", document.getElementById('w-name').innerText); if(n) document.getElementById('w-name').innerText = n; }
 
     async function getNav() {
         const target = turf.center(masterList[currentIdx]).geometry.coordinates;
